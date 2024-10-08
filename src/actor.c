@@ -35,7 +35,7 @@
 static pthread_mutex_t actors_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t actors_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t actors_alloc = PTHREAD_MUTEX_INITIALIZER;
-static actors_ready = 0;
+static int actors_ready = 0;
 static list_item_t *actor_list_real;
 static list_item_t **actor_list = &actor_list_real;
 
@@ -351,7 +351,7 @@ void actor_reply_msg(actor_msg_t *a, long type, void *data, size_t size) {
 void actor_broadcast_msg(long type, void *data, size_t size) {
     actor_id *lst = NULL;
     actor_state_t *st;
-    int count = 0;
+    size_t count = 0;
     int x = 0;
 
     ACCESS_ACTORS_BEGIN;

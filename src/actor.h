@@ -47,7 +47,7 @@
 #define ACCESS_ACTORS_BEGIN pthread_mutex_lock(&actors_mutex)
 #define ACCESS_ACTORS_END pthread_mutex_unlock(&actors_mutex)
 
-#define ACTOR_INVALID -1
+#define ACTOR_INVALID (-1)
 
 
 /*------------------------------------------------------------------------------
