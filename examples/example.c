@@ -26,6 +26,7 @@ void sleep(unsigned int seconds) {
     Sleep(seconds * 1000);
 }
 #else
+#include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
