@@ -17,7 +17,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include "./list.h"
+#include "libactor/list.h"
 
 void list_init(list_item_t **start) {
     *start = NULL;

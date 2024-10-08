@@ -29,8 +29,8 @@
 #define PTHREAD_HANDLE(_t) _t
 #endif  // defined(WIN32)
 
-#include "./actor.h"
-#include "./list.h"
+#include "libactor/actor.h"
+#include "libactor/list.h"
 
 static pthread_mutex_t actors_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t actors_cond = PTHREAD_COND_INITIALIZER;

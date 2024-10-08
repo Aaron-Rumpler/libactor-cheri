@@ -1,10 +1,11 @@
-set(CMAKE_INSTALL_LIBDIR lib CACHE PATH "Output directory for libraries")
-
 find_package(Threads REQUIRED)
+
+SET(LIBRARY_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 
 add_library(actor SHARED actor.c list.c)
 set_target_properties(actor PROPERTIES VERSION 0.0.1 SOVERSION 1)
-install(TARGETS actor DESTINATION ${CMAKE_INSTALL_LIBDIR})
-target_link_libraries(actor ${CMAKE_THREAD_LIBS_INIT})
+target_include_directories(actor PUBLIC $<BUILD_INTERFACE:${LIBRARY_INCLUDE_DIR}> $<INSTALL_INTERFACE:include>)
+target_link_libraries(actor Threads::Threads)
 
-install(FILES actor.h list.h DESTINATION include/libactor)
+install(TARGETS actor DESTINATION lib)
+install(DIRECTORY ${LIBRARY_INCLUDE_DIR}/libactor DESTINATION include)
