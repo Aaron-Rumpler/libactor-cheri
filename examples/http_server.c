@@ -24,11 +24,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #include <libactor/actor.h>
 
-#   include <sys/types.h>
-#   include <sys/socket.h>
-#   include <netinet/in.h>
-#   include <unistd.h>
-#   include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <arpa/inet.h>
 
 
 #define BUFFER_SIZE 512
@@ -36,53 +36,53 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 unsigned char *recvline(int sockfd) {
-    unsigned char * buf = (unsigned char *) malloc(BUFFER_SIZE);
+    unsigned char *buf = (unsigned char *)malloc(BUFFER_SIZE);
     unsigned int len = 0, bufLen = BUFFER_SIZE;
     int ret;
-    
-    for(;;) {
+
+    for (;;) {
         ret = recv(sockfd, buf + len, 1, 0);
-        if(ret <= 0) {
+        if (ret <= 0) {
             free(buf);
             return NULL;
         } else {
-            if(buf[len] == 0) {
+            if (buf[len] == 0) {
                 free(buf);
                 return NULL;
-            }   
+            }
             len += ret;
-            if(len >= 2 && (buf[len-2] == '\r' && buf[len-1] == '\n')) {
-                buf[len-2] = 0;
+            if (len >= 2 && (buf[len - 2] == '\r' && buf[len - 1] == '\n')) {
+                buf[len - 2] = 0;
                 return buf;
             }
-            if(len == (BUFFER_SIZE-1)) {
-                buf = (unsigned char*)realloc(buf, bufLen + BUFFER_SIZE);
+            if (len == (BUFFER_SIZE - 1)) {
+                buf = (unsigned char *)realloc(buf, bufLen + BUFFER_SIZE);
                 bufLen += BUFFER_SIZE;
             }
         }
     }
-    
+
     return buf;
 }
 
 
 ACTOR_FUNCTION(http_client, args) {
-    actor_msg_t * msg;
-    struct sockaddr_in * remote;
-    int sock = (int) args;
-    unsigned char * line = NULL;
-    char * response =
-      "HTTP/1.1 200 OK\r\n"
-      "Content-Type: text/plain\r\n"
-      "Content-Length: 12\r\n"
-      "\r\n"
-      "Hello, World!\r\n";
+    actor_msg_t *msg;
+    struct sockaddr_in *remote;
+    int sock = (int)args;
+    unsigned char *line = NULL;
+    char *response =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/plain\r\n"
+        "Content-Length: 12\r\n"
+        "\r\n"
+        "Hello, World!\r\n";
 
     msg = actor_receive();
-    if(msg->type == HTTP_CLIENT_INFO) {
-        remote = (struct sockaddr_in *) msg->data;
-        while((line = recvline(sock)) != NULL) {
-            if(*line == 0) {
+    if (msg->type == HTTP_CLIENT_INFO) {
+        remote = (struct sockaddr_in *)msg->data;
+        while ((line = recvline(sock)) != NULL) {
+            if (*line == 0) {
                 free(line);
                 break;
             }
@@ -100,44 +100,34 @@ ACTOR_FUNCTION(http_listener, arg) {
     struct sockaddr_in local, remote;
     int sockfd;
     int socklen = sizeof(struct sockaddr_in);
-    
-    int port = (int) arg;
-    
+
+    int port = (int)arg;
+
     local.sin_family = AF_INET;
     local.sin_addr.s_addr = INADDR_ANY;
     local.sin_port = htons(port);
     sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    
+
     /* Set SO_REUSEADDR */
     int sockoption = 1;
-    setsockopt(
-      sockfd,
-      SOL_SOCKET,
-      SO_REUSEADDR,
-      (char*) &sockoption,
-      sizeof(sockoption));
-    
-  int bind_result =
-      bind(sockfd, (struct sockaddr *) &local, sizeof(struct sockaddr_in));
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&sockoption, sizeof(sockoption));
 
-    if(bind_result == -1) {
-    perror("bind");
-    return 0;
-  }
+    int bind_result = bind(sockfd, (struct sockaddr *)&local, sizeof(struct sockaddr_in));
 
-  listen(sockfd, 0);
+    if (bind_result == -1) {
+        perror("bind");
+        return 0;
+    }
+
+    listen(sockfd, 0);
     printf("HTTP server listening on port: %d\n", port);
-    
-    while(1) {
-    int clientsock = accept(sockfd, (struct sockaddr *) &remote, &socklen);
-        if(clientsock == -1) break;
 
-    actor_id aid = spawn_actor(http_client, (void *) clientsock);
-    actor_send_msg(
-        aid,
-        HTTP_CLIENT_INFO,
-        (void *) &remote,
-        sizeof(struct sockaddr_in));
+    while (1) {
+        int clientsock = accept(sockfd, (struct sockaddr *)&remote, &socklen);
+        if (clientsock == -1) break;
+
+        actor_id aid = spawn_actor(http_client, (void *)clientsock);
+        actor_send_msg(aid, HTTP_CLIENT_INFO, (void *)&remote, sizeof(struct sockaddr_in));
     }
 
     return 0;
@@ -145,11 +135,13 @@ ACTOR_FUNCTION(http_listener, arg) {
 
 
 ACTOR_FUNCTION(main_func, args) {
-    struct actor_main *amain = (struct actor_main *) args;
-    
-    if(amain->argc < 2) printf("usage: %s port\n", amain->argv[0]);
-    else                spawn_actor(http_listener, (void *) atoi(amain->argv[1]));
-    
+    struct actor_main *amain = (struct actor_main *)args;
+
+    if (amain->argc < 2)
+        printf("usage: %s port\n", amain->argv[0]);
+    else
+        spawn_actor(http_listener, (void *)atoi(amain->argv[1]));
+
     return 0;
 }
 

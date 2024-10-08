@@ -28,7 +28,7 @@ struct list_item_struct;
 typedef struct list_item_struct list_item_t;
 
 struct list_item_struct {
-  list_item_t *next;
+    list_item_t *next;
 };
 
 

@@ -20,61 +20,61 @@
 #include "./list.h"
 
 void list_init(list_item_t **start) {
-  *start = NULL;
+    *start = NULL;
 }
 
 void list_append(list_item_t **start, void *x) {
-  list_item_t *lst = (list_item_t*)x, *temp = NULL;
-  lst->next = NULL;
-  if (*start == NULL) {
-    *start = lst;
-  } else {
-    for (temp = *start; temp->next != NULL; temp = temp->next);
-    temp->next = lst;
-  }
+    list_item_t *lst = (list_item_t *)x, *temp = NULL;
+    lst->next = NULL;
+    if (*start == NULL) {
+        *start = lst;
+    } else {
+        for (temp = *start; temp->next != NULL; temp = temp->next);
+        temp->next = lst;
+    }
 }
 
 size_t list_count(list_item_t **start) {
-  list_item_t *temp;
-  size_t x = 0;
-  if (*start == NULL) return 0;
-  for (temp = *start; temp != NULL; temp = temp->next) {
-    x++;
-  }
-  return x;
+    list_item_t *temp;
+    size_t x = 0;
+    if (*start == NULL) return 0;
+    for (temp = *start; temp != NULL; temp = temp->next) {
+        x++;
+    }
+    return x;
 }
 
 void *list_pop(list_item_t **start) {
-  list_item_t *temp;
-  if (*start == NULL) return NULL;
-  temp = *start;
-  *start = temp->next;
-  return temp;
+    list_item_t *temp;
+    if (*start == NULL) return NULL;
+    temp = *start;
+    *start = temp->next;
+    return temp;
 }
 
 void *list_filter(list_item_t **start, list_filter_func_ptr_t func, void *arg) {
-  list_item_t *temp;
-  if (*start == NULL) return NULL;
-  for (temp = *start; temp != NULL; temp = temp->next) {
-    if (func(temp, arg) == 0) return temp;
-  }
-  return NULL;
+    list_item_t *temp;
+    if (*start == NULL) return NULL;
+    for (temp = *start; temp != NULL; temp = temp->next) {
+        if (func(temp, arg) == 0) return temp;
+    }
+    return NULL;
 }
 
 void list_remove(list_item_t **start, void *x) {
-  list_item_t *a, *b;
-  int removed = 0;
-  if (*start == NULL) return;
-  if (*start == x) {
-    *start = ((list_item_t*)x)->next;
-    return;
-  }
-  for (a = *start, b = *start; a != NULL; a = a->next) {
-    if (a == x) {
-      b->next = a->next;
-      removed = 1;
-      break;
+    list_item_t *a, *b;
+    int removed = 0;
+    if (*start == NULL) return;
+    if (*start == x) {
+        *start = ((list_item_t *)x)->next;
+        return;
     }
-    b = a;
-  }
+    for (a = *start, b = *start; a != NULL; a = a->next) {
+        if (a == x) {
+            b->next = a->next;
+            removed = 1;
+            break;
+        }
+        b = a;
+    }
 }

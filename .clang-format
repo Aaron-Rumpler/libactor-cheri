@@ -1,0 +1,10 @@
+BasedOnStyle: Chromium
+IndentWidth: 4
+ColumnLimit: 120
+MaxEmptyLinesToKeep: 2
+InsertNewlineAtEOF: true
+SortIncludes: Never
+PointerAlignment: Right
+AllowShortBlocksOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
