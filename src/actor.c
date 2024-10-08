@@ -22,12 +22,8 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
-#if defined(WIN32)
-#define PTHREAD_HANDLE(_t) _t.p
-#else
 #include <sys/resource.h>
 #define PTHREAD_HANDLE(_t) _t
-#endif  // defined(WIN32)
 
 #include "libactor/actor.h"
 #include "libactor/list.h"

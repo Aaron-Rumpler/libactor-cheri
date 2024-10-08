@@ -19,18 +19,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #include <stdio.h>
-
-#if defined(WIN32)
-#include <windows.h>
-void sleep(unsigned int seconds) {
-    Sleep(seconds * 1000);
-}
-#else
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#endif  // defined(WIN32)
 
 #include <libactor/actor.h>
 
