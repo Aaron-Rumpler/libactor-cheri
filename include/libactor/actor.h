@@ -47,7 +47,24 @@
 #define ACCESS_ACTORS_BEGIN pthread_mutex_lock(&actors_mutex)
 #define ACCESS_ACTORS_END pthread_mutex_unlock(&actors_mutex)
 
+#define DECLARE_ACTOR_MAIN(fun)           \
+    int main(int argc, char **argv) {     \
+        struct actor_main amain;          \
+        amain.argc = argc;                \
+        amain.argv = argv;                \
+        actor_init();                     \
+        spawn_actor(fun, (void *)&amain); \
+        actor_wait_finish();              \
+        actor_destroy_all();              \
+        exit(0);                          \
+    }
+
 #define ACTOR_INVALID (-1)
+
+struct actor_main {
+    int argc;
+    char **argv;
+};
 
 
 /*------------------------------------------------------------------------------
@@ -66,7 +83,7 @@ typedef struct alloc_info_struct alloc_info_t;
 ** Actor Function
 **
 */
-
+#define ACTOR_FUNCTION(name, args) void *(name)(void *args)
 typedef void *(*actor_function_ptr_t)(void *);
 
 
@@ -132,6 +149,8 @@ struct actor_state_struct {
     pthread_cond_t msg_cond;
     pthread_mutex_t msg_mutex;
     list_item_t *allocs;
+    actor_id trap_exit_to;
+    char trap_exit;
 };
 
 enum { ACTOR_MSG_EXITED = 1 };
@@ -203,6 +222,14 @@ actor_msg_t *actor_receive();
  */
 actor_msg_t *actor_receive_timeout(long timeout);
 
+/*
+ * Enables or disables trap exit for the executing Actor.
+ * If enabled, if you spawn an actor, you will receive an ACTOR_MSG_EXITED message when that actor exits.
+ * This is good if you want to monitor any actors that you have spawned.
+ *
+ * @param action When set to 1, trap exit is enabled.
+ */
+void actor_trap_exit(int action);
 
 /**
  * Gets the actor_id of the executing Actor.
@@ -214,6 +241,7 @@ actor_id actor_self();
 /* Memory management */
 void *amalloc(size_t size);
 void arelease(void *block);
+void aretain(void *block);
 
 
 #endif  // SRC_ACTOR_H_

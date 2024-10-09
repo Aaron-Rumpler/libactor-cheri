@@ -51,6 +51,7 @@ struct actor_spawn_info {
 */
 actor_msg_t *_actor_create_msg(long type, void *data, size_t size, actor_id sender, actor_id dest, pthread_t thread);
 void *_amalloc_thread(size_t size, pthread_t thread);
+void _aretain_thread(void *block, pthread_t thread);
 void _arelease(void *block, pthread_t thread);
 void _actor_send_msg(actor_id aid, long type, void *data, size_t size);
 void _actor_release_memory(actor_state_t *state);
@@ -62,6 +63,7 @@ actor_id _actor_find_by_thread();
 void actor_init_state(actor_state_t **state);
 void actor_destroy_state(actor_state_t *state);
 void actor_release_memory(actor_state_t *state);
+void aretain_thread(void *block, pthread_t thread);
 
 
 /*------------------------------------------------------------------------------
@@ -145,6 +147,7 @@ void *spawn_actor_fun(void *arg) {
 
     ACCESS_ACTORS_BEGIN;
 
+    if (si->state->trap_exit_to != 0) _actor_send_msg(si->state->trap_exit_to, ACTOR_MSG_EXITED, NULL, 0);
     _actor_release_memory(si->state);
     _actor_destroy_state(si->state);
     free(si);
@@ -244,6 +247,26 @@ actor_id actor_self() {
                                 state management
 ------------------------------------------------------------------------------*/
 
+actor_id _actor_trapexit_to() {
+    actor_state_t *st;
+    st = list_filter(actor_list, find_thread, (void *)PTHREAD_HANDLE(pthread_self()));
+
+    if (st != NULL && st->trap_exit == 1) return st->myid;
+
+    return 0;
+}
+
+void actor_trap_exit(int action) {
+    actor_state_t *st;
+
+    ACCESS_ACTORS_BEGIN;
+
+    st = list_filter(actor_list, find_thread, (void *)PTHREAD_HANDLE(pthread_self()));
+
+    if (st != NULL) st->trap_exit = action == 0 ? 0 : 1;
+
+    ACCESS_ACTORS_END;
+}
 
 void _actor_init_state(actor_state_t **state) {
     actor_state_t *t;
@@ -251,6 +274,8 @@ void _actor_init_state(actor_state_t **state) {
 
 
     t = (actor_state_t *)malloc(sizeof(actor_state_t));
+    t->trap_exit_to = _actor_trapexit_to();
+    t->trap_exit = 0;
     t->myid = get_unique_actor_id();
     pthread_cond_init(&t->msg_cond, NULL);
     pthread_mutex_init(&t->msg_mutex, NULL);
@@ -429,6 +454,14 @@ void *_amalloc_thread(size_t size, pthread_t thread) {
     return block;
 }
 
+void *amalloc(size_t size) {
+    pthread_t thread = pthread_self();
+    void *block;
+    ACCESS_ACTORS_BEGIN;
+    block = _amalloc_thread(size, thread);
+    ACCESS_ACTORS_END;
+    return block;
+}
 
 /* satisfies list_filter_func_ptr_t */
 int find_memory(void *info, void *block) {
@@ -441,6 +474,32 @@ int find_actor_block(void *info, void *arg) {
     return (((struct actor_alloc *)info)->block == arg) ? 0 : -1;
 }
 
+void aretain(void *block) {
+    pthread_t thread = pthread_self();
+    ACCESS_ACTORS_BEGIN;
+    _aretain_thread(block, thread);
+    ACCESS_ACTORS_END;
+}
+
+void _aretain_thread(void *block, pthread_t thread) {
+    alloc_info_t *info = NULL;
+    actor_state_t *st = NULL;
+    struct actor_alloc *al;
+
+    if (block == NULL) return;
+
+    if ((info = list_filter(alloc_list, find_memory, block)) != NULL) {
+        info->refcount++;
+    }
+
+    st = list_filter(actor_list, find_thread, (void *)PTHREAD_HANDLE(thread));
+    if (st != NULL) {
+        al = (struct actor_alloc *)malloc(sizeof(struct actor_alloc));
+        assert(al != NULL);
+        al->block = block;
+        list_append(&st->allocs, al);
+    }
+}
 
 void arelease(void *block) {
     pthread_t thread = pthread_self();
