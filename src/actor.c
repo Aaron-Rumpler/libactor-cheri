@@ -373,7 +373,7 @@ void actor_broadcast_msg(long type, void *data, size_t size) {
     actor_id *lst = NULL;
     actor_state_t *st;
     size_t count = 0;
-    int x = 0;
+    size_t x = 0;
 
     ACCESS_ACTORS_BEGIN;
 
