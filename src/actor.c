@@ -82,15 +82,15 @@ static list_item_t **alloc_list = &alloc_list_real;
 /* Only use these functions if you know what you are doing
    (pthreads + concurrent memory access = death)
 */
-actor_msg_t *_actor_create_msg(long type, void *data, size_t size, actor_id sender, actor_id dest, pthread_t thread);
-void *_amalloc_thread(size_t size, pthread_t thread);
-void _aretain_thread(void *block, pthread_t thread);
-void _arelease(void *block, pthread_t thread);
-void _actor_send_msg(actor_id aid, long type, void *data, size_t size);
-void _actor_release_memory(actor_state_t *state);
-void _actor_destroy_state(actor_state_t *state);
-void _actor_init_state(actor_state_t **state);
-actor_id _actor_find_by_thread();
+static actor_msg_t *_actor_create_msg(long type, void *data, size_t size, actor_id sender, actor_id dest, pthread_t thread);
+static void *_amalloc_thread(size_t size, pthread_t thread);
+static void _aretain_thread(void *block, pthread_t thread);
+static void _arelease(void *block, pthread_t thread);
+static void _actor_send_msg(actor_id aid, long type, void *data, size_t size);
+static void _actor_release_memory(actor_state_t *state);
+static void _actor_destroy_state(actor_state_t *state);
+static void _actor_init_state(actor_state_t **state);
+static actor_id _actor_find_by_thread();
 
 
 /*------------------------------------------------------------------------------
@@ -163,7 +163,7 @@ void actor_destroy_all() {
                                    spawn_actor
 ------------------------------------------------------------------------------*/
 
-void *spawn_actor_fun(void *arg) {
+static void *spawn_actor_fun(void *arg) {
     struct actor_spawn_info *si = (struct actor_spawn_info *)arg;
 
     ACCESS_ACTORS_BEGIN;
@@ -222,7 +222,7 @@ actor_id spawn_actor(actor_function_ptr_t func, void *args) {
 
 
 /* satisfies list_filter_func_ptr_t */
-int find_thread(void *item, void *arg) {
+static int find_thread(void *item, void *arg) {
     int ret = -1;
     actor_state_t *st = (actor_state_t *)item;
     if (PTHREAD_HANDLE(st->thread) == arg) ret = 0;
@@ -230,14 +230,14 @@ int find_thread(void *item, void *arg) {
 }
 
 /* satisfies list_filter_func_ptr_t */
-int find_by_id(void *item, void *arg) {
+static int find_by_id(void *item, void *arg) {
     int ret = -1;
     actor_state_t *st = ((actor_state_t *)item);
     if (st->myid == (actor_id)arg) ret = 0;
     return ret;
 }
 
-actor_id get_unique_actor_id() {
+static actor_id get_unique_actor_id() {
     actor_id aid = -1;
     actor_state_t *st;
 
@@ -250,7 +250,7 @@ find:
 }
 
 
-actor_id _actor_find_by_thread() {
+static actor_id _actor_find_by_thread() {
     actor_state_t *st = NULL;
     actor_id aid = -1;
     pthread_t thread = pthread_self();
@@ -274,7 +274,7 @@ actor_id actor_self() {
                                 state management
 ------------------------------------------------------------------------------*/
 
-actor_id _actor_trapexit_to() {
+static actor_id _actor_trapexit_to() {
     actor_state_t *st;
     st = list_filter(actor_list, find_thread, (void *)PTHREAD_HANDLE(pthread_self()));
 
@@ -295,7 +295,7 @@ void actor_trap_exit(int action) {
     ACCESS_ACTORS_END;
 }
 
-void _actor_init_state(actor_state_t **state) {
+static void _actor_init_state(actor_state_t **state) {
     actor_state_t *t;
     assert(state != NULL);
 
@@ -315,7 +315,7 @@ void _actor_init_state(actor_state_t **state) {
     *state = t;
 }
 
-void _actor_destroy_state(actor_state_t *state) {
+static void _actor_destroy_state(actor_state_t *state) {
     if (state == NULL) return;
 
     pthread_cond_destroy(&state->msg_cond);
@@ -329,7 +329,7 @@ void _actor_destroy_state(actor_state_t *state) {
                                     messaging
 ------------------------------------------------------------------------------*/
 
-actor_msg_t *_actor_create_msg(long type, void *data, size_t size, actor_id sender, actor_id dest, pthread_t thread) {
+static actor_msg_t *_actor_create_msg(long type, void *data, size_t size, actor_id sender, actor_id dest, pthread_t thread) {
     void *newblock;
     actor_msg_t *msg = (actor_msg_t *)_amalloc_thread(sizeof(actor_msg_t), thread);
     newblock = _amalloc_thread(size, thread);
@@ -426,7 +426,7 @@ void actor_send_msg(actor_id aid, long type, void *data, size_t size) {
     ACCESS_ACTORS_END;
 }
 
-void _actor_send_msg(actor_id aid, long type, void *data, size_t size) {
+static void _actor_send_msg(actor_id aid, long type, void *data, size_t size) {
     actor_state_t *st = NULL;
     actor_msg_t *msg = NULL;
     actor_id myid = _actor_find_by_thread();
@@ -451,7 +451,7 @@ void _actor_send_msg(actor_id aid, long type, void *data, size_t size) {
                                 memory management
 ------------------------------------------------------------------------------*/
 
-void *_amalloc_thread(size_t size, pthread_t thread) {
+static void *_amalloc_thread(size_t size, pthread_t thread) {
     alloc_info_t *info;
     void *block = NULL;
     actor_state_t *st = NULL;
@@ -491,13 +491,13 @@ void *amalloc(size_t size) {
 }
 
 /* satisfies list_filter_func_ptr_t */
-int find_memory(void *info, void *block) {
+static int find_memory(void *info, void *block) {
     if (((alloc_info_t *)info)->block == block) return 0;
     return -1;
 }
 
 /* satisfies list_filter_func_ptr_t */
-int find_actor_block(void *info, void *arg) {
+static int find_actor_block(void *info, void *arg) {
     return (((struct actor_alloc *)info)->block == arg) ? 0 : -1;
 }
 
@@ -508,7 +508,7 @@ void aretain(void *block) {
     ACCESS_ACTORS_END;
 }
 
-void _aretain_thread(void *block, pthread_t thread) {
+static void _aretain_thread(void *block, pthread_t thread) {
     alloc_info_t *info = NULL;
     actor_state_t *st = NULL;
     struct actor_alloc *al;
@@ -536,7 +536,7 @@ void arelease(void *block) {
     ACCESS_ACTORS_END;
 }
 
-void _arelease(void *block, pthread_t thread) {
+static void _arelease(void *block, pthread_t thread) {
     alloc_info_t *info = NULL;
     actor_state_t *st = NULL;
     struct actor_alloc *al;
@@ -566,11 +566,11 @@ void _arelease(void *block, pthread_t thread) {
 }
 
 /* satisfies list_filter_func_ptr_t */
-int find_memory_actor(void *owner, void *arg) {
+static int find_memory_actor(void *owner, void *arg) {
     return (owner == arg) ? 0 : -1;
 }
 
-void _actor_release_memory(actor_state_t *state) {
+static void _actor_release_memory(actor_state_t *state) {
     struct actor_alloc *info, *tmp;
 #ifdef DEBUG_MEMORY
     int count = list_count(&state->allocs);
