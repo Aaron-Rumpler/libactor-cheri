@@ -31,8 +31,6 @@
 #include <pthread.h>
 #include <assert.h>
 
-#include "./list.h"
-
 
 /*------------------------------------------------------------------------------
                                preprocessor definitions
@@ -43,9 +41,6 @@
 #else
 #define ACTOR_THREAD_PRINT(msg)
 #endif
-
-#define ACCESS_ACTORS_BEGIN pthread_mutex_lock(&actors_mutex)
-#define ACCESS_ACTORS_END pthread_mutex_unlock(&actors_mutex)
 
 #define DECLARE_ACTOR_MAIN(fun)           \
     int main(int argc, char **argv) {     \
@@ -71,13 +66,6 @@ struct actor_main {
                                     types
 ------------------------------------------------------------------------------*/
 
-struct alloc_info_struct {
-    struct alloc_info_struct *next;
-    void *block;
-    unsigned int refcount;
-};
-typedef struct alloc_info_struct alloc_info_t;
-
 /*
 **
 ** Actor Function
@@ -85,16 +73,6 @@ typedef struct alloc_info_struct alloc_info_t;
 */
 #define ACTOR_FUNCTION(name, args) void *(name)(void *args)
 typedef void *(*actor_function_ptr_t)(void *);
-
-
-/*
-**
-** Actor Types
-**
-*/
-
-struct actor_state_struct;
-typedef struct actor_state_struct actor_state_t;
 
 /**
  * An integer that refers to a unique actor’s ID.
@@ -134,23 +112,6 @@ struct actor_message_struct {
      * The size of the data.
      */
     size_t size;
-};
-
-struct actor_alloc {
-    struct actor_alloc *next;
-    void *block;
-};
-
-struct actor_state_struct {
-    actor_state_t *next;
-    actor_id myid;
-    actor_msg_t *messages;
-    pthread_t thread;
-    pthread_cond_t msg_cond;
-    pthread_mutex_t msg_mutex;
-    list_item_t *allocs;
-    actor_id trap_exit_to;
-    char trap_exit;
 };
 
 enum { ACTOR_MSG_EXITED = 1 };

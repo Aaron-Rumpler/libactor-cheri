@@ -28,6 +28,46 @@
 #include "libactor/actor.h"
 #include "libactor/list.h"
 
+#define ACCESS_ACTORS_BEGIN pthread_mutex_lock(&actors_mutex)
+#define ACCESS_ACTORS_END pthread_mutex_unlock(&actors_mutex)
+
+/* Private structs */
+
+struct alloc_info_struct {
+    struct alloc_info_struct *next;
+    void *block;
+    unsigned int refcount;
+};
+typedef struct alloc_info_struct alloc_info_t;
+
+struct actor_state_struct;
+typedef struct actor_state_struct actor_state_t;
+
+struct actor_alloc {
+    struct actor_alloc *next;
+    void *block;
+};
+
+struct actor_state_struct {
+    actor_state_t *next;
+    actor_id myid;
+    actor_msg_t *messages;
+    pthread_t thread;
+    pthread_cond_t msg_cond;
+    pthread_mutex_t msg_mutex;
+    list_item_t *allocs;
+    actor_id trap_exit_to;
+    char trap_exit;
+};
+
+struct actor_spawn_info {
+    actor_state_t *state;
+    actor_function_ptr_t fun;
+    void *args;
+};
+
+/* Internal state */
+
 static pthread_mutex_t actors_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t actors_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t actors_alloc = PTHREAD_MUTEX_INITIALIZER;
@@ -37,13 +77,6 @@ static list_item_t **actor_list = &actor_list_real;
 
 static list_item_t *alloc_list_real;
 static list_item_t **alloc_list = &alloc_list_real;
-
-/* Private structs */
-struct actor_spawn_info {
-    actor_state_t *state;
-    actor_function_ptr_t fun;
-    void *args;
-};
 
 
 /* Only use these functions if you know what you are doing
