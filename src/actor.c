@@ -92,12 +92,6 @@ void _actor_destroy_state(actor_state_t *state);
 void _actor_init_state(actor_state_t **state);
 actor_id _actor_find_by_thread();
 
-/* Private */
-void actor_init_state(actor_state_t **state);
-void actor_destroy_state(actor_state_t *state);
-void actor_release_memory(actor_state_t *state);
-void aretain_thread(void *block, pthread_t thread);
-
 
 /*------------------------------------------------------------------------------
                            initialization and management
