@@ -25,6 +25,7 @@
 #include <cheriintrin.h>
 
 #include <sys/resource.h>
+#include <stdbool.h>
 #define PTHREAD_HANDLE(_t) _t
 
 #include "libactor/actor.h"
@@ -82,11 +83,12 @@ static list_item_t **alloc_list = &alloc_list_real;
 /* Only use these functions if you know what you are doing
    (pthreads + concurrent memory access = death)
 */
-static actor_msg_t *_actor_create_msg(long type, void *data, size_t size, actor_id sender, actor_id dest, pthread_t thread);
+static void *_actor_copy_message_data(void *data, size_t size, pthread_t thread);
+static actor_msg_t *_actor_create_msg(long type, void *data, size_t size, bool copy_data, actor_id sender, actor_id dest, pthread_t thread);
 static void *_amalloc_thread(size_t size, pthread_t thread);
 static void _aretain_thread(void *block, pthread_t thread);
 static void _arelease(void *block, pthread_t thread);
-static void _actor_send_msg(actor_id aid, long type, void *data, size_t size);
+static void _actor_send_msg(actor_id aid, long type, void *data, size_t size, bool copy_data);
 static void _actor_release_memory(actor_state_t *state);
 static void _actor_destroy_state(actor_state_t *state);
 static void _actor_init_state(actor_state_t **state);
@@ -200,7 +202,7 @@ static void *spawn_actor_fun(void *arg) {
 
     ACCESS_ACTORS_BEGIN;
 
-    if (si->state->trap_exit_to != 0) _actor_send_msg(si->state->trap_exit_to, ACTOR_MSG_EXITED, NULL, 0);
+    if (si->state->trap_exit_to != 0) _actor_send_msg(si->state->trap_exit_to, ACTOR_MSG_EXITED, NULL, 0, true);
     _actor_release_memory(si->state);
     _actor_destroy_state(si->state);
     free(si);
@@ -339,16 +341,25 @@ static void _actor_destroy_state(actor_state_t *state) {
 /*------------------------------------------------------------------------------
                                     messaging
 ------------------------------------------------------------------------------*/
+static void *_actor_copy_message_data(void *data, size_t size, pthread_t thread) {
+    void *newblock = _amalloc_thread(size, thread);
 
-static actor_msg_t *_actor_create_msg(long type, void *data, size_t size, actor_id sender, actor_id dest, pthread_t thread) {
-    void *newblock;
+    return memcpy(newblock, data, size);
+}
+
+static actor_msg_t *_actor_create_msg(long type, void *data, size_t size, bool copy_data, actor_id sender, actor_id dest, pthread_t thread) {
     actor_msg_t *msg = (actor_msg_t *)_amalloc_thread(sizeof(actor_msg_t), thread);
-    newblock = _amalloc_thread(size, thread);
 
-    memcpy(newblock, data, size);
+    if (copy_data) {
+        data = _actor_copy_message_data(data, size, thread);
+    } else {
+        _aretain_thread(data, thread);
+    }
+
+    const void *msgdata = cheri_perms_and(data, CHERI_PERM_LOAD);
 
     msg->type = type;
-    msg->data = newblock;
+    msg->data = msgdata;
     msg->size = size;
     msg->dest = dest;
     msg->sender = sender;
@@ -422,22 +433,24 @@ void actor_broadcast_msg(long type, void *data, size_t size) {
         x++;
     }
 
-    ACCESS_ACTORS_END;
+    char *copied_data = _actor_copy_message_data(data, size, NULL);
 
     for (x = 0; x < count; x++) {
-        actor_send_msg(lst[x], type, data, size);
+        _actor_send_msg(lst[x], type, copied_data, size, false);
     }
+
+    ACCESS_ACTORS_END;
 
     arelease(lst);
 }
 
 void actor_send_msg(actor_id aid, long type, void *data, size_t size) {
     ACCESS_ACTORS_BEGIN;
-    _actor_send_msg(aid, type, data, size);
+    _actor_send_msg(aid, type, data, size, true);
     ACCESS_ACTORS_END;
 }
 
-static void _actor_send_msg(actor_id aid, long type, void *data, size_t size) {
+static void _actor_send_msg(actor_id aid, long type, void *data, size_t size, bool copy_data) {
     actor_state_t *st = NULL;
     actor_msg_t *msg = NULL;
     actor_id myid = _actor_find_by_thread();
@@ -451,7 +464,7 @@ static void _actor_send_msg(actor_id aid, long type, void *data, size_t size) {
 
     if (st != NULL) {
         pthread_mutex_lock(&st->msg_mutex);
-        msg = _actor_create_msg(type, data, size, myid, aid, st->thread);
+        msg = _actor_create_msg(type, data, size, copy_data, myid, aid, st->thread);
         list_append((list_item_t **)&st->messages, msg);
         pthread_cond_signal(&st->msg_cond);
         pthread_mutex_unlock(&st->msg_mutex);
@@ -478,12 +491,14 @@ static void *_amalloc_thread(size_t size, pthread_t thread) {
     info->block = block;
     info->refcount = 1;
 
-    st = list_filter(actor_list, find_thread, (void *)PTHREAD_HANDLE(thread));
-    if (st != NULL) {
-        al = (struct actor_alloc *)malloc(sizeof(struct actor_alloc));
-        assert(al != NULL);
-        al->block = block;
-        list_append(&st->allocs, al);
+    if (thread != NULL) {
+        st = list_filter(actor_list, find_thread, (void *)PTHREAD_HANDLE(thread));
+        if (st != NULL) {
+            al = (struct actor_alloc *)malloc(sizeof(struct actor_alloc));
+            assert(al != NULL);
+            al->block = block;
+            list_append(&st->allocs, al);
+        }
     }
 
     list_append(alloc_list, info);

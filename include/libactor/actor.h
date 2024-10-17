@@ -101,7 +101,7 @@ struct actor_message_struct {
     /**
      * A `void *` to the message data.
      */
-    void *data;
+    const void *data;
 
     /**
      * A integer that should identify the structure of the data.
