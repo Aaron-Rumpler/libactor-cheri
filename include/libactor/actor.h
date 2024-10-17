@@ -77,7 +77,7 @@ typedef void *(*actor_function_ptr_t)(void *);
 /**
  * An integer that refers to a unique actor’s ID.
  */
-typedef long actor_id;
+typedef void *actor_id;
 
 struct actor_message_struct;
 typedef struct actor_message_struct actor_msg_t;

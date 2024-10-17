@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <sys/sysctl.h>
+#include <cheriintrin.h>
 
 #include <sys/resource.h>
 #define PTHREAD_HANDLE(_t) _t
@@ -50,7 +52,6 @@ struct actor_alloc {
 
 struct actor_state_struct {
     actor_state_t *next;
-    actor_id myid;
     actor_msg_t *messages;
     pthread_t thread;
     pthread_cond_t msg_cond;
@@ -67,7 +68,6 @@ struct actor_spawn_info {
 };
 
 /* Internal state */
-
 static pthread_mutex_t actors_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t actors_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t actors_alloc = PTHREAD_MUTEX_INITIALIZER;
@@ -92,12 +92,38 @@ static void _actor_destroy_state(actor_state_t *state);
 static void _actor_init_state(actor_state_t **state);
 static actor_id _actor_find_by_thread();
 
+// https://capabilitiesforcoders.com/faq/how_to_seal.html
+void * get_system_sealer() {
+    void * sealcap;
+    size_t sealcap_size = sizeof(sealcap);
+    if (sysctlbyname("security.cheri.sealcap", &sealcap, &sealcap_size, NULL, 0) < 0)
+    {
+        fprintf(stderr, "Fatal error. Cannot get `security.cheri.sealcap`.");
+        exit(1);
+    }
+    return sealcap;
+}
+
+// TODO: determine if you can generate one as opposed to picking a random shared one
+void * get_derived_sealer() {
+    static void * sealer = NULL;
+    if (!sealer) {
+        void * root_sealer = get_system_sealer();
+        size_t offset = arc4random() % cheri_length_get(root_sealer);
+        sealer = cheri_offset_set(root_sealer, offset);
+    }
+    return sealer;
+}
+
+static void *actor_id_sealer;
 
 /*------------------------------------------------------------------------------
                            initialization and management
 ------------------------------------------------------------------------------*/
 
 void actor_init() {
+    actor_id_sealer = get_derived_sealer();
+
     assert(actor_list != NULL);
     if (actor_list == NULL) {
         pthread_mutex_lock(&actors_mutex);
@@ -200,7 +226,7 @@ actor_id spawn_actor(actor_function_ptr_t func, void *args) {
 
     assert(state != NULL);
 
-    aid = state->myid;
+    aid = cheri_seal(state, actor_id_sealer);
     si = (struct actor_spawn_info *)malloc(sizeof(struct actor_spawn_info));
     assert(si != NULL);
     si->state = state;
@@ -233,32 +259,18 @@ static int find_thread(void *item, void *arg) {
 static int find_by_id(void *item, void *arg) {
     int ret = -1;
     actor_state_t *st = ((actor_state_t *)item);
-    if (st->myid == (actor_id)arg) ret = 0;
+    if (st == cheri_unseal(arg, actor_id_sealer)) ret = 0;
     return ret;
-}
-
-static actor_id get_unique_actor_id() {
-    actor_id aid = -1;
-    actor_state_t *st;
-
-find:
-    aid = rand(); /* TODO: use rand_r ? */
-    for (st = (actor_state_t *)*actor_list; st != NULL; st = st->next) {
-        if (st->myid == aid) goto find;
-    }
-    return aid;
 }
 
 
 static actor_id _actor_find_by_thread() {
     actor_state_t *st = NULL;
-    actor_id aid = -1;
     pthread_t thread = pthread_self();
 
     st = list_filter(actor_list, find_thread, (void *)PTHREAD_HANDLE(thread));
-    if (st != NULL) aid = st->myid;
 
-    return aid;
+    return cheri_seal(st, actor_id_sealer);
 }
 
 actor_id actor_self() {
@@ -278,7 +290,7 @@ static actor_id _actor_trapexit_to() {
     actor_state_t *st;
     st = list_filter(actor_list, find_thread, (void *)PTHREAD_HANDLE(pthread_self()));
 
-    if (st != NULL && st->trap_exit == 1) return st->myid;
+    if (st != NULL && st->trap_exit == 1) return cheri_seal(st, actor_id_sealer);
 
     return 0;
 }
@@ -303,7 +315,6 @@ static void _actor_init_state(actor_state_t **state) {
     t = (actor_state_t *)malloc(sizeof(actor_state_t));
     t->trap_exit_to = _actor_trapexit_to();
     t->trap_exit = 0;
-    t->myid = get_unique_actor_id();
     pthread_cond_init(&t->msg_cond, NULL);
     pthread_mutex_init(&t->msg_mutex, NULL);
     list_init((list_item_t **)&t->messages);
@@ -407,7 +418,7 @@ void actor_broadcast_msg(long type, void *data, size_t size) {
     count = list_count(actor_list);
     lst = _amalloc_thread(sizeof(actor_id) * count, pthread_self());
     for (st = (actor_state_t *)*actor_list; st != NULL; st = st->next) {
-        lst[x] = st->myid;
+        lst[x] = cheri_seal(st, actor_id_sealer);
         x++;
     }
 
@@ -433,8 +444,9 @@ static void _actor_send_msg(actor_id aid, long type, void *data, size_t size) {
     pthread_t thread;
     PTHREAD_HANDLE(thread) = NULL;
 
-    if (myid == -1) return;
+    if (myid == NULL) return;
 
+    // TODO: Replace with a cheri_unseal and check that it's still a valid actor
     st = list_filter(actor_list, find_by_id, (void *)aid);
 
     if (st != NULL) {
